@@ -18,7 +18,7 @@
                 <h1 class="text-2xl font-bold text-gray-800 flex items-center gap-2">👟 Shoe Pick List</h1>
                 <p class="text-sm text-gray-500 mt-1">お気に入りの靴をストックしよう</p>
             </div>
-            <div id="user-info" class="text-xs text-gray-400">Loading...</div>
+            <div id="user-info" class="text-xs text-blue-500 font-bold">Connecting...</div>
         </header>
 
         <section class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 mb-8">
@@ -58,6 +58,7 @@
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
+        // GitHub Actionsがデプロイ時に書き換えます
         const firebaseConfig = {
             apiKey: "SEC_FIREBASE_API_KEY",
             authDomain: "SEC_FIREBASE_AUTH_DOMAIN",
@@ -67,108 +68,112 @@
             appId: "SEC_FIREBASE_APP_ID"
         };
 
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
+        const userInfo = document.getElementById('user-info');
 
-        let currentUser = null;
-        let imageBase64 = null;
+        try {
+            const app = initializeApp(firebaseConfig);
+            const auth = getAuth(app);
+            const db = getFirestore(app);
 
-        // 認証
-        onAuthStateChanged(auth, (user) => {
-            if (user) {
-                currentUser = user;
-                document.getElementById('user-info').textContent = `User: ${user.uid.substring(0, 8)}`;
-                setupListener();
-            } else {
-                signInAnonymously(auth).catch(err => console.error("Auth Error:", err));
-            }
-        });
+            let currentUser = null;
+            let imageBase64 = null;
 
-        // 画像選択
-        document.getElementById('shoe-image').addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = (event) => {
-                    imageBase64 = event.target.result;
-                    document.getElementById('image-preview').src = imageBase64;
-                    document.getElementById('image-preview').classList.remove('hidden');
-                    document.getElementById('preview-placeholder').classList.add('hidden');
-                };
-                reader.readAsDataURL(file);
-            }
-        });
-
-        function setupListener() {
-            // セキュリティルールに合わせてトップレベルのコレクションを参照
-            const shoesCol = collection(db, 'shoes');
-            onSnapshot(shoesCol, (snapshot) => {
-                const shoes = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                shoes.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
-                render(shoes);
-            }, (err) => {
-                console.error("Firestore Error (Snapshot):", err);
-                if(err.code === 'permission-denied') {
-                    console.error("Firebaseの『ルール』の設定を確認してください。");
+            // 認証の監視
+            onAuthStateChanged(auth, (user) => {
+                if (user) {
+                    currentUser = user;
+                    userInfo.textContent = `Login OK: ${user.uid.substring(0, 8)}`;
+                    userInfo.className = "text-xs text-green-500 font-bold";
+                    setupListener(db);
+                } else {
+                    userInfo.textContent = "Logging in...";
+                    signInAnonymously(auth).catch(err => {
+                        console.error("Auth Error:", err);
+                        userInfo.textContent = "Auth Error: 匿名認証をONにしてください";
+                        userInfo.className = "text-xs text-red-500 font-bold";
+                    });
                 }
             });
-        }
 
-        function render(shoes) {
-            document.getElementById('list-count').textContent = `マイリスト (${shoes.length})`;
-            const list = document.getElementById('shoe-list');
-            list.innerHTML = shoes.map(shoe => `
-                <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                    <div class="h-40 relative">
-                        <img src="${shoe.image || 'https://via.placeholder.com/150'}" class="w-full h-full object-cover">
-                        <button onclick="window.del('${shoe.id}')" class="absolute top-2 right-2 p-2 bg-white/80 rounded-full text-red-500">🗑️</button>
-                    </div>
-                    <div class="p-3">
-                        <div class="font-bold truncate">${shoe.name}</div>
-                        <div class="text-blue-600 font-bold text-sm">¥${Number(shoe.price).toLocaleString()}</div>
-                    </div>
-                </div>
-            `).join('');
-        }
+            // 以下、機能の実装...
+            document.getElementById('shoe-image').addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                        imageBase64 = event.target.result;
+                        document.getElementById('image-preview').src = imageBase64;
+                        document.getElementById('image-preview').classList.remove('hidden');
+                        document.getElementById('preview-placeholder').classList.add('hidden');
+                    };
+                    reader.readAsDataURL(file);
+                }
+            });
 
-        document.getElementById('shoe-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            if (!currentUser) {
-                alert("ログイン待機中です。少し待ってからやり直してください。");
-                return;
-            }
-
-            const btn = document.getElementById('add-button');
-            btn.disabled = true;
-            btn.textContent = "追加中...";
-
-            const name = document.getElementById('shoe-name').value;
-            const price = document.getElementById('shoe-price').value;
-
-            try {
-                await addDoc(collection(db, 'shoes'), {
-                    name, 
-                    price: Number(price), 
-                    image: imageBase64, 
-                    userId: currentUser.uid,
-                    createdAt: serverTimestamp()
+            function setupListener(db) {
+                const shoesCol = collection(db, 'shoes');
+                onSnapshot(shoesCol, (snapshot) => {
+                    const shoes = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    shoes.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+                    render(shoes);
+                }, (err) => {
+                    console.error("Firestore Error:", err);
+                    userInfo.textContent = "Firestore Error: ルール設定を確認してください";
                 });
-                
-                e.target.reset();
-                document.getElementById('image-preview').classList.add('hidden');
-                document.getElementById('preview-placeholder').classList.remove('hidden');
-                imageBase64 = null;
-            } catch (err) {
-                console.error("Add Error:", err);
-                alert("追加に失敗しました。ルール設定やコンソールを確認してください。");
-            } finally {
-                btn.disabled = false;
-                btn.textContent = "リストに追加";
             }
-        });
 
-        window.del = (id) => deleteDoc(doc(db, 'shoes', id));
+            function render(shoes) {
+                document.getElementById('list-count').textContent = `マイリスト (${shoes.length})`;
+                const list = document.getElementById('shoe-list');
+                list.innerHTML = shoes.map(shoe => `
+                    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                        <div class="h-40 relative">
+                            <img src="${shoe.image || 'https://via.placeholder.com/150'}" class="w-full h-full object-cover">
+                            <button onclick="window.del('${shoe.id}')" class="absolute top-2 right-2 p-2 bg-white/80 rounded-full text-red-500">🗑️</button>
+                        </div>
+                        <div class="p-3">
+                            <div class="font-bold truncate">${shoe.name}</div>
+                            <div class="text-blue-600 font-bold text-sm">¥${Number(shoe.price).toLocaleString()}</div>
+                        </div>
+                    </div>
+                `).join('');
+            }
+
+            document.getElementById('shoe-form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                if (!currentUser) {
+                    alert("ログインが完了していません。匿名認証設定を確認してください。");
+                    return;
+                }
+                const btn = document.getElementById('add-button');
+                btn.disabled = true;
+                btn.textContent = "追加中...";
+                try {
+                    await addDoc(collection(db, 'shoes'), {
+                        name: document.getElementById('shoe-name').value,
+                        price: Number(document.getElementById('shoe-price').value),
+                        image: imageBase64,
+                        userId: currentUser.uid,
+                        createdAt: serverTimestamp()
+                    });
+                    e.target.reset();
+                    document.getElementById('image-preview').classList.add('hidden');
+                    document.getElementById('preview-placeholder').classList.remove('hidden');
+                    imageBase64 = null;
+                } catch (err) {
+                    alert("エラー: " + err.message);
+                } finally {
+                    btn.disabled = false;
+                    btn.textContent = "リストに追加";
+                }
+            });
+
+            window.del = (id) => deleteDoc(doc(db, 'shoes', id));
+
+        } catch (e) {
+            userInfo.textContent = "Config Error: APIキーの設定を確認してください";
+            userInfo.className = "text-xs text-red-500 font-bold";
+        }
     </script>
 </body>
 </html>
