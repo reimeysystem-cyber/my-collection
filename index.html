@@ -13,205 +13,137 @@
 <body class="bg-gray-50 min-h-screen">
 
     <div class="max-w-2xl mx-auto p-4 md:p-8">
-        <!-- ヘッダー -->
         <header class="flex items-center justify-between mb-8 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
             <div>
-                <h1 class="text-2xl font-bold text-gray-800 flex items-center gap-2">
-                    <span id="header-icon">👟</span>
-                    Shoe Pick List
-                </h1>
+                <h1 class="text-2xl font-bold text-gray-800 flex items-center gap-2">👟 Shoe Pick List</h1>
                 <p class="text-sm text-gray-500 mt-1">お気に入りの靴をストックしよう</p>
             </div>
             <div id="user-info" class="text-xs text-gray-400">Loading...</div>
         </header>
 
-        <!-- 入力フォーム -->
         <section class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 mb-8">
             <form id="shoe-form" class="space-y-4">
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div class="space-y-2">
-                        <label class="text-sm font-medium text-gray-700 flex items-center gap-1">🏷️ 靴の名前</label>
-                        <input type="text" id="shoe-name" class="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="例: Air Jordan 1" required>
+                        <label class="text-sm font-medium text-gray-700">🏷️ 靴の名前</label>
+                        <input type="text" id="shoe-name" class="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none" required>
                     </div>
                     <div class="space-y-2">
-                        <label class="text-sm font-medium text-gray-700 flex items-center gap-1">¥ 値段</label>
-                        <input type="number" id="shoe-price" class="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="例: 19800" required>
+                        <label class="text-sm font-medium text-gray-700">¥ 値段</label>
+                        <input type="number" id="shoe-price" class="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none" required>
                     </div>
                 </div>
-
                 <div class="space-y-2">
-                    <label class="text-sm font-medium text-gray-700 flex items-center gap-1">📷 写真を選択</label>
+                    <label class="text-sm font-medium text-gray-700">📷 写真</label>
                     <label class="block">
-                        <div id="image-dropzone" class="w-full h-32 border-2 border-dashed border-gray-200 rounded-xl flex flex-col items-center justify-center bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer overflow-hidden">
-                            <div id="preview-placeholder" class="text-center">
-                                <span class="text-gray-400 text-2xl">+</span><br>
-                                <span class="text-xs text-gray-400">画像をアップロード</span>
-                            </div>
+                        <div id="image-dropzone" class="w-full h-32 border-2 border-dashed border-gray-200 rounded-xl flex items-center justify-center bg-gray-50 cursor-pointer overflow-hidden">
+                            <div id="preview-placeholder" class="text-gray-400 text-xs">画像をアップロード</div>
                             <img id="image-preview" src="" class="hidden w-full h-full object-cover">
                         </div>
                         <input type="file" id="shoe-image" accept="image/*" class="hidden">
                     </label>
                 </div>
-
-                <button type="submit" id="submit-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl shadow-lg shadow-blue-200 transition-all flex items-center justify-center gap-2">
-                    リストに追加する
-                </button>
+                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition-all">リストに追加</button>
             </form>
         </section>
 
-        <!-- 表示リスト -->
         <section class="space-y-4">
             <h2 id="list-count" class="text-lg font-bold text-gray-800 px-2">マイリスト (0)</h2>
-            <div id="shoe-list" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <!-- アイテムがここに動的に追加されます -->
-            </div>
+            <div id="shoe-list" class="grid grid-cols-1 sm:grid-cols-2 gap-4"></div>
         </section>
     </div>
 
-    <!-- Firebase SDK -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // 環境設定
-        const firebaseConfig = JSON.parse(__firebase_config);
+        // GitHub Actionsがデプロイ時にここをSecretsの値に書き換えます
+        const firebaseConfig = {
+            apiKey: "SEC_FIREBASE_API_KEY",
+            authDomain: "SEC_FIREBASE_AUTH_DOMAIN",
+            projectId: "SEC_FIREBASE_PROJECT_ID",
+            storageBucket: "SEC_FIREBASE_STORAGE_BUCKET",
+            messagingSenderId: "SEC_FIREBASE_MESSAGING_SENDER_ID",
+            appId: "SEC_FIREBASE_APP_ID"
+        };
+
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'shoe-list-app-html';
+        const appId = "shoe-list-app"; 
 
         let currentUser = null;
         let imageBase64 = null;
 
-        // UI要素
-        const shoeForm = document.getElementById('shoe-form');
-        const shoeList = document.getElementById('shoe-list');
-        const listCount = document.getElementById('list-count');
-        const imageInput = document.getElementById('shoe-image');
-        const imagePreview = document.getElementById('image-preview');
-        const previewPlaceholder = document.getElementById('preview-placeholder');
-        const userInfo = document.getElementById('user-info');
-
-        // 1. 認証 (RULE 3)
-        const initAuth = async () => {
-            try {
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    await signInWithCustomToken(auth, __initial_auth_token);
-                } else {
-                    await signInAnonymously(auth);
-                }
-            } catch (error) {
-                console.error("Auth error:", error);
-            }
-        };
-
         onAuthStateChanged(auth, (user) => {
-            currentUser = user;
             if (user) {
-                userInfo.textContent = `User ID: ${user.uid.substring(0, 8)}...`;
+                currentUser = user;
+                document.getElementById('user-info').textContent = `User: ${user.uid.substring(0, 8)}`;
                 setupListener();
+            } else {
+                signInAnonymously(auth);
             }
         });
 
-        initAuth();
-
-        // 画像プレビュー処理
-        imageInput.addEventListener('change', (e) => {
+        // 画像選択
+        document.getElementById('shoe-image').addEventListener('change', (e) => {
             const file = e.target.files[0];
             if (file) {
                 const reader = new FileReader();
                 reader.onload = (event) => {
                     imageBase64 = event.target.result;
-                    imagePreview.src = imageBase64;
-                    imagePreview.classList.remove('hidden');
-                    previewPlaceholder.classList.add('hidden');
+                    document.getElementById('image-preview').src = imageBase64;
+                    document.getElementById('image-preview').classList.remove('hidden');
+                    document.getElementById('preview-placeholder').classList.add('hidden');
                 };
                 reader.readAsDataURL(file);
             }
         });
 
-        // 2. データ監視 (RULE 1 & 2)
         function setupListener() {
-            const shoesCollection = collection(db, 'artifacts', appId, 'public', 'data', 'shoes');
-            onSnapshot(shoesCollection, (snapshot) => {
+            // パスを簡略化（自分のFirebase用）
+            const shoesCol = collection(db, 'shoes');
+            onSnapshot(shoesCol, (snapshot) => {
                 const shoes = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                // JSでソート
                 shoes.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
-                renderList(shoes);
-            }, (error) => console.error("Firestore Error:", error));
-        }
-
-        // リスト表示
-        function renderList(shoes) {
-            listCount.textContent = `マイリスト (${shoes.length})`;
-            shoeList.innerHTML = '';
-            
-            if (shoes.length === 0) {
-                shoeList.innerHTML = `<div class="col-span-full bg-white border border-dashed border-gray-200 rounded-2xl py-12 text-center text-gray-400">まだアイテムがありません。</div>`;
-                return;
-            }
-
-            shoes.forEach(shoe => {
-                const date = shoe.createdAt ? new Date(shoe.createdAt.seconds * 1000).toLocaleDateString() : '...';
-                const card = document.createElement('div');
-                card.className = "bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden group hover:shadow-md transition-shadow";
-                card.innerHTML = `
-                    <div class="h-48 overflow-hidden bg-gray-100 relative">
-                        <img src="${shoe.image}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
-                        <button onclick="deleteShoe('${shoe.id}')" class="absolute top-2 right-2 p-2 bg-white/80 backdrop-blur-sm text-red-500 rounded-full hover:bg-red-50 transition-colors shadow-sm">
-                            🗑️
-                        </button>
-                    </div>
-                    <div class="p-4">
-                        <h3 class="font-bold text-gray-800 truncate">${shoe.name}</h3>
-                        <div class="mt-2 flex items-center justify-between">
-                            <span class="text-blue-600 font-bold">¥${Number(shoe.price).toLocaleString()}</span>
-                            <span class="text-[10px] text-gray-400">${date}</span>
-                        </div>
-                    </div>
-                `;
-                shoeList.appendChild(card);
+                render(shoes);
             });
         }
 
-        // 3. 追加処理
-        shoeForm.addEventListener('submit', async (e) => {
+        function render(shoes) {
+            document.getElementById('list-count').textContent = `マイリスト (${shoes.length})`;
+            const list = document.getElementById('shoe-list');
+            list.innerHTML = shoes.map(shoe => `
+                <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                    <div class="h-40 relative">
+                        <img src="${shoe.image}" class="w-full h-full object-cover">
+                        <button onclick="window.del('${shoe.id}')" class="absolute top-2 right-2 p-2 bg-white/80 rounded-full text-red-500">🗑️</button>
+                    </div>
+                    <div class="p-3">
+                        <div class="font-bold truncate">${shoe.name}</div>
+                        <div class="text-blue-600 font-bold text-sm">¥${Number(shoe.price).toLocaleString()}</div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        document.getElementById('shoe-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             if (!currentUser) return;
-
             const name = document.getElementById('shoe-name').value;
             const price = document.getElementById('shoe-price').value;
-
-            try {
-                const shoesCollection = collection(db, 'artifacts', appId, 'public', 'data', 'shoes');
-                await addDoc(shoesCollection, {
-                    name,
-                    price: Number(price),
-                    image: imageBase64 || 'https://via.placeholder.com/150',
-                    userId: currentUser.uid,
-                    createdAt: serverTimestamp()
-                });
-
-                // リセット
-                shoeForm.reset();
-                imageBase64 = null;
-                imagePreview.classList.add('hidden');
-                previewPlaceholder.classList.remove('hidden');
-            } catch (err) {
-                console.error("Add Error:", err);
-            }
+            await addDoc(collection(db, 'shoes'), {
+                name, price: Number(price), image: imageBase64, createdAt: serverTimestamp()
+            });
+            e.target.reset();
+            document.getElementById('image-preview').classList.add('hidden');
+            document.getElementById('preview-placeholder').classList.remove('hidden');
+            imageBase64 = null;
         });
 
-        // 4. 削除処理 (グローバルに関数を配置)
-        window.deleteShoe = async (id) => {
-            if (!currentUser) return;
-            try {
-                await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'shoes', id));
-            } catch (err) {
-                console.error("Delete Error:", err);
-            }
-        };
+        window.del = (id) => deleteDoc(doc(db, 'shoes', id));
     </script>
 </body>
+</html>
 </html>
