@@ -58,7 +58,7 @@
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // GitHub Actionsがデプロイ時に書き換えます
+        // 置換ミスを防ぐため、引用符を含めて目印にします
         const firebaseConfig = {
             apiKey: "SEC_FIREBASE_API_KEY",
             authDomain: "SEC_FIREBASE_AUTH_DOMAIN",
@@ -71,6 +71,11 @@
         const userInfo = document.getElementById('user-info');
 
         try {
+            // Configが正しく置換されているかチェック（SEC_で始まっていたらエラー）
+            if (firebaseConfig.apiKey.startsWith("SEC_")) {
+                throw new Error("GitHub Secretsの置換に失敗しています");
+            }
+
             const app = initializeApp(firebaseConfig);
             const auth = getAuth(app);
             const db = getFirestore(app);
@@ -78,7 +83,6 @@
             let currentUser = null;
             let imageBase64 = null;
 
-            // 認証の監視
             onAuthStateChanged(auth, (user) => {
                 if (user) {
                     currentUser = user;
@@ -89,13 +93,13 @@
                     userInfo.textContent = "Logging in...";
                     signInAnonymously(auth).catch(err => {
                         console.error("Auth Error:", err);
-                        userInfo.textContent = "Auth Error: 匿名認証をONにしてください";
+                        userInfo.textContent = "Auth Error: 匿名認証設定またはAPIキーを確認してください";
                         userInfo.className = "text-xs text-red-500 font-bold";
                     });
                 }
             });
 
-            // 以下、機能の実装...
+            // 画像選択
             document.getElementById('shoe-image').addEventListener('change', (e) => {
                 const file = e.target.files[0];
                 if (file) {
@@ -141,10 +145,7 @@
 
             document.getElementById('shoe-form').addEventListener('submit', async (e) => {
                 e.preventDefault();
-                if (!currentUser) {
-                    alert("ログインが完了していません。匿名認証設定を確認してください。");
-                    return;
-                }
+                if (!currentUser) return;
                 const btn = document.getElementById('add-button');
                 btn.disabled = true;
                 btn.textContent = "追加中...";
@@ -171,7 +172,7 @@
             window.del = (id) => deleteDoc(doc(db, 'shoes', id));
 
         } catch (e) {
-            userInfo.textContent = "Config Error: APIキーの設定を確認してください";
+            userInfo.textContent = e.message;
             userInfo.className = "text-xs text-red-500 font-bold";
         }
     </script>
