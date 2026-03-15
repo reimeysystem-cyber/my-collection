@@ -43,7 +43,7 @@
                         <input type="file" id="shoe-image" accept="image/*" class="hidden">
                     </label>
                 </div>
-                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition-all">リストに追加</button>
+                <button type="submit" id="add-button" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition-all">リストに追加</button>
             </form>
         </section>
 
@@ -58,7 +58,6 @@
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // GitHub Actionsがデプロイ時にここをSecretsの値に書き換えます
         const firebaseConfig = {
             apiKey: "SEC_FIREBASE_API_KEY",
             authDomain: "SEC_FIREBASE_AUTH_DOMAIN",
@@ -71,18 +70,18 @@
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
-        const appId = "shoe-list-app"; 
 
         let currentUser = null;
         let imageBase64 = null;
 
+        // 認証
         onAuthStateChanged(auth, (user) => {
             if (user) {
                 currentUser = user;
                 document.getElementById('user-info').textContent = `User: ${user.uid.substring(0, 8)}`;
                 setupListener();
             } else {
-                signInAnonymously(auth);
+                signInAnonymously(auth).catch(err => console.error("Auth Error:", err));
             }
         });
 
@@ -102,12 +101,17 @@
         });
 
         function setupListener() {
-            // パスを簡略化（自分のFirebase用）
+            // セキュリティルールに合わせてトップレベルのコレクションを参照
             const shoesCol = collection(db, 'shoes');
             onSnapshot(shoesCol, (snapshot) => {
                 const shoes = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 shoes.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
                 render(shoes);
+            }, (err) => {
+                console.error("Firestore Error (Snapshot):", err);
+                if(err.code === 'permission-denied') {
+                    console.error("Firebaseの『ルール』の設定を確認してください。");
+                }
             });
         }
 
@@ -117,7 +121,7 @@
             list.innerHTML = shoes.map(shoe => `
                 <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
                     <div class="h-40 relative">
-                        <img src="${shoe.image}" class="w-full h-full object-cover">
+                        <img src="${shoe.image || 'https://via.placeholder.com/150'}" class="w-full h-full object-cover">
                         <button onclick="window.del('${shoe.id}')" class="absolute top-2 right-2 p-2 bg-white/80 rounded-full text-red-500">🗑️</button>
                     </div>
                     <div class="p-3">
@@ -130,20 +134,41 @@
 
         document.getElementById('shoe-form').addEventListener('submit', async (e) => {
             e.preventDefault();
-            if (!currentUser) return;
+            if (!currentUser) {
+                alert("ログイン待機中です。少し待ってからやり直してください。");
+                return;
+            }
+
+            const btn = document.getElementById('add-button');
+            btn.disabled = true;
+            btn.textContent = "追加中...";
+
             const name = document.getElementById('shoe-name').value;
             const price = document.getElementById('shoe-price').value;
-            await addDoc(collection(db, 'shoes'), {
-                name, price: Number(price), image: imageBase64, createdAt: serverTimestamp()
-            });
-            e.target.reset();
-            document.getElementById('image-preview').classList.add('hidden');
-            document.getElementById('preview-placeholder').classList.remove('hidden');
-            imageBase64 = null;
+
+            try {
+                await addDoc(collection(db, 'shoes'), {
+                    name, 
+                    price: Number(price), 
+                    image: imageBase64, 
+                    userId: currentUser.uid,
+                    createdAt: serverTimestamp()
+                });
+                
+                e.target.reset();
+                document.getElementById('image-preview').classList.add('hidden');
+                document.getElementById('preview-placeholder').classList.remove('hidden');
+                imageBase64 = null;
+            } catch (err) {
+                console.error("Add Error:", err);
+                alert("追加に失敗しました。ルール設定やコンソールを確認してください。");
+            } finally {
+                btn.disabled = false;
+                btn.textContent = "リストに追加";
+            }
         });
 
         window.del = (id) => deleteDoc(doc(db, 'shoes', id));
     </script>
 </body>
-</html>
 </html>
